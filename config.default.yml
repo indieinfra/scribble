@@ -1,0 +1,11 @@
+server:
+  address: ":"
+  port: 9000
+
+micropub:
+  # Your domain
+  me_url: "https://your.domain"
+
+  # Where to validate incoming tokens
+  # IndieAuth by default, or use your own
+  token_endpoint: "https://tokens.indieauth.com"
