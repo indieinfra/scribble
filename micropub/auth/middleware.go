@@ -25,7 +25,7 @@ func ValidateTokenMiddleware(next http.Handler) http.Handler {
 		authorization := r.Header.Get("Authorization")
 		scheme, token, ok := strings.Cut(authorization, " ")
 		if !ok || !strings.EqualFold(scheme, "Bearer") {
-			resp.WriteHttpError(w, http.StatusBadRequest, "A bearer token is required. Please ensure Authorization header is in Bearer <token> format")
+			resp.WriteHttpError(w, http.StatusBadRequest, "A bearer token is required. Please ensure Authorization header is in Bearer format")
 			return
 		}
 

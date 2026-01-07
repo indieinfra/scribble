@@ -20,9 +20,12 @@ type TokenDetails struct {
 	Nonce    int    `json:"nonce"`
 }
 
+func (details *TokenDetails) String() string {
+	return fmt.Sprintf("TokenDetails{me=%v, clientId=%v, scope=%v, issuedAt=%v, nonce=%v}", details.Me, details.ClientId, details.Scope, details.IssuedAt, details.Nonce)
+}
+
 func (details *TokenDetails) HasScope(scope scope.Scope) bool {
-	str := scope.String()
-	return slices.Contains(strings.Split(strings.ToLower(str), " "), strings.ToLower(str))
+	return slices.Contains(strings.Split(strings.ToLower(details.Scope), " "), strings.ToLower(scope.String()))
 }
 
 func (details *TokenDetails) HasMe(me string) bool {

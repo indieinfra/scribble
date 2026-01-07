@@ -7,11 +7,12 @@ import (
 	"github.com/indieinfra/scribble/config"
 	"github.com/indieinfra/scribble/micropub/auth"
 	"github.com/indieinfra/scribble/micropub/scope"
+	"github.com/indieinfra/scribble/micropub/server/handler"
 )
 
 func StartServer() {
 	mux := http.NewServeMux()
-	// mux.Handle("POST /create", scoped(handler.HandleCreate, scope.Create))
+	mux.Handle("POST /create", scoped(handler.HandleCreate, scope.Create))
 
 	bindAddress := config.BindAddress()
 	log.Printf("serving http requests on %q", bindAddress)
@@ -27,7 +28,7 @@ func scoped(h http.HandlerFunc, scopes ...scope.Scope) http.Handler {
 }
 
 func chain(h http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
-	for i := len(middlewares); i >= 0; i-- {
+	for i := len(middlewares) - 1; i >= 0; i-- {
 		h = middlewares[i](h)
 	}
 
