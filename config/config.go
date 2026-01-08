@@ -43,26 +43,31 @@ func validateServerSection() {
 		log.Fatal("server.port: invalid value, should be a positive whole number (a valid network port)")
 	}
 
-	maxBytesFormUrlEncoded := viper.GetUint("server.limits.maxBytesFormUrlEncoded")
-	if maxBytesFormUrlEncoded == 0 {
-		log.Fatal("server.limits.maxBytesFormUrlEncoded: invalid value, should be defined as positive bytes value")
+	maxPayloadSize := MaxPayloadSize()
+	if maxPayloadSize == 0 {
+		log.Fatal("server.limits.maxPayloadSize: invalid value, should be defined as positive bytes value")
 	}
 
-	maxBytesMultipart := viper.GetUint("server.limits.maxBytesMultipart")
-	if maxBytesMultipart == 0 {
-		log.Fatal("server.limits.maxBytesMultipartt: invalid value, should be defined as positive bytes value")
+	maxFileSize := MaxFileSize()
+	if maxFileSize == 0 {
+		log.Fatal("server.limits.maxFileSize: invalid value, should be defined as positive bytes value")
+	}
+
+	maxMultipartSize := MaxMultipartSize()
+	if maxMultipartSize == 0 {
+		log.Fatal("server.limits.maxMultipartSize: invalid value, should be defined as positive bytes value")
 	}
 }
 
 func validateMicropubSection() {
-	meUrl := viper.GetString("micropub.me_url")
+	meUrl := MeUrl()
 	if meUrl == "" {
 		log.Fatal("micropub.me_url: should be defined")
 	} else if _, err := url.ParseRequestURI(meUrl); err != nil {
 		log.Fatal("micropub.me_url: should be a valid URL")
 	}
 
-	tokenEndpoint := viper.GetString("micropub.token_endpoint")
+	tokenEndpoint := TokenEndpoint()
 	if tokenEndpoint == "" {
 		log.Fatal("micropub.token_endpoint: should be defined")
 	} else if _, err := url.ParseRequestURI(tokenEndpoint); err != nil {
@@ -71,7 +76,7 @@ func validateMicropubSection() {
 }
 
 func validatePersistenceSection() {
-	strategy := viper.GetString("persistence.strategy")
+	strategy := PersistenceStrategy()
 	if strategy != "static" {
 		log.Fatal("persistence.strategy: invalid value, should be \"static\"")
 	}
@@ -80,7 +85,7 @@ func validatePersistenceSection() {
 }
 
 func validatePersistenceStaticSection() {
-	method := viper.GetString("persistence.static.method")
+	method := PersistenceStaticMethod()
 	if method != "git" {
 		log.Fatal("persistence.static.method: invalid value, should be \"git\"")
 	}
@@ -91,25 +96,24 @@ func validatePersistenceStaticSection() {
 }
 
 func validatePersistenceStaticGitSection() {
-	prefix := "persistence.static.git."
-	repository := viper.GetString(prefix + "repository")
+	repository := GitRepository()
 	if repository == "" {
 		log.Fatal("persistence.static.git.repository: should be defined")
 	} else if _, err := url.ParseRequestURI(repository); err != nil {
 		log.Fatal("persistence.static.git.repository: should be a valid URL")
 	}
 
-	username := viper.GetString(prefix + "username")
+	username := GitUsername()
 	if username == "" {
 		log.Fatal("persistence.static.git.username: should be defined")
 	}
 
-	password := viper.GetString(prefix + "password")
+	password := GitPassword()
 	if password == "" {
 		log.Fatal("persistence.static.git.password: should be defined")
 	}
 
-	directory := viper.GetString(prefix + "directory")
+	directory := GitDirectory()
 	if directory == "" {
 		log.Fatal("persistence.static.git.directory: should be defined")
 	}
@@ -119,12 +123,16 @@ func BindAddress() string {
 	return fmt.Sprintf("%v%v", viper.GetString("server.address"), viper.GetUint("server.port"))
 }
 
-func MaxBytesFormUrlEncoded() uint {
-	return viper.GetUint("server.limits.maxBytesFormUrlEncoded")
+func MaxPayloadSize() uint {
+	return viper.GetUint("server.limits.maxPayloadSize")
 }
 
-func MaxBytesMultipart() uint {
-	return viper.GetUint("server.limits.maxBytesMultipart")
+func MaxFileSize() uint {
+	return viper.GetUint("server.limits.maxFileSize")
+}
+
+func MaxMultipartSize() uint {
+	return viper.GetUint("server.limits.maxMultipartSize")
 }
 
 func TokenEndpoint() string {
@@ -137,4 +145,28 @@ func MeUrl() string {
 
 func Debug() bool {
 	return viper.GetBool("debug")
+}
+
+func PersistenceStrategy() string {
+	return viper.GetString("persistence.strategy")
+}
+
+func PersistenceStaticMethod() string {
+	return viper.GetString("persistence.static.method")
+}
+
+func GitRepository() string {
+	return viper.GetString("persistence.static.git.repository")
+}
+
+func GitUsername() string {
+	return viper.GetString("persistence.static.git.username")
+}
+
+func GitPassword() string {
+	return viper.GetString("persistence.static.git.password")
+}
+
+func GitDirectory() string {
+	return viper.GetString("persistence.static.git.directory")
 }
