@@ -29,6 +29,6 @@ func main() {
 		return
 	}
 
-	log.Println("starting http server...")
+	log.Println("starting server...")
 	server.StartServer(cfg)
 }

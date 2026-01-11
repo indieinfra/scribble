@@ -6,10 +6,10 @@ import (
 
 	"github.com/indieinfra/scribble/server/auth"
 	"github.com/indieinfra/scribble/server/resp"
-	"github.com/indieinfra/scribble/storage/content"
+	"github.com/indieinfra/scribble/server/state"
 )
 
-func Delete(w http.ResponseWriter, r *http.Request, data map[string]any, isUndelete bool) {
+func Delete(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, data map[string]any, isUndelete bool) {
 	urlRaw, ok := data["url"]
 	if !ok {
 		resp.WriteInvalidRequest(w, "URL to (un)delete must be specified")
@@ -29,7 +29,7 @@ func Delete(w http.ResponseWriter, r *http.Request, data map[string]any, isUndel
 			return
 		}
 
-		url, isNewUrl, err2 := content.ActiveContentStore.Undelete(r.Context(), url)
+		url, isNewUrl, err2 := st.ContentStore.Undelete(r.Context(), url)
 		if err2 != nil {
 			resp.WriteInternalServerError(w, fmt.Sprintf("Error during undeletion: %v", err))
 		} else if isNewUrl {
@@ -43,7 +43,7 @@ func Delete(w http.ResponseWriter, r *http.Request, data map[string]any, isUndel
 			return
 		}
 
-		err2 := content.ActiveContentStore.Delete(r.Context(), url)
+		err2 := st.ContentStore.Delete(r.Context(), url)
 		if err2 != nil {
 			resp.WriteInternalServerError(w, fmt.Sprintf("Error during deletion: %v", err))
 		} else {

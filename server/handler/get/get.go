@@ -4,20 +4,20 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/indieinfra/scribble/config"
 	"github.com/indieinfra/scribble/server/resp"
+	"github.com/indieinfra/scribble/server/state"
 )
 
-func DispatchGet(cfg *config.Config) http.HandlerFunc {
+func DispatchGet(st *state.ScribbleState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query().Get("q")
 		switch q {
 		case "config":
-			HandleConfig(cfg, w, r)
+			HandleConfig(st, w, r)
 		case "source":
-			HandleSource(cfg, w, r)
+			HandleSource(st, w, r)
 		case "syndicate-to":
-			HandleSyndicateTo(cfg, w, r)
+			HandleSyndicateTo(st, w, r)
 		default:
 			resp.WriteInvalidRequest(w, fmt.Sprintf("Unknown query: %q", q))
 		}

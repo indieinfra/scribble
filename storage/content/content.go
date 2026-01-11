@@ -6,8 +6,6 @@ import (
 	"github.com/indieinfra/scribble/server/util"
 )
 
-var ActiveContentStore ContentStore
-
 type MicropubProperties map[string][]any
 
 type ContentObject struct {

@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/indieinfra/scribble/config"
 	"github.com/indieinfra/scribble/server/resp"
+	"github.com/indieinfra/scribble/server/state"
 )
 
-func DispatchPost(cfg *config.Config) http.HandlerFunc {
+func DispatchPost(st *state.ScribbleState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body := ReadBody(cfg, w, r)
+		body := ReadBody(st.Cfg, w, r)
 		if body == nil {
 			return
 		}
@@ -31,13 +31,13 @@ func DispatchPost(cfg *config.Config) http.HandlerFunc {
 
 		switch strings.ToLower(action) {
 		case "create":
-			Create(w, r, body)
+			Create(st, w, r, body)
 		case "update":
-			Update(w, r, body)
+			Update(st, w, r, body)
 		case "delete":
-			Delete(w, r, body, false)
+			Delete(st, w, r, body, false)
 		case "undelete":
-			Delete(w, r, body, true)
+			Delete(st, w, r, body, true)
 		default:
 			resp.WriteInvalidRequest(w, fmt.Sprintf("Unknown action: %q", action))
 		}

@@ -6,11 +6,12 @@ import (
 
 	"github.com/indieinfra/scribble/server/auth"
 	"github.com/indieinfra/scribble/server/resp"
+	"github.com/indieinfra/scribble/server/state"
 	"github.com/indieinfra/scribble/server/util"
 	"github.com/indieinfra/scribble/storage/content"
 )
 
-func Create(w http.ResponseWriter, r *http.Request, data map[string]any) {
+func Create(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, data map[string]any) {
 	if !auth.RequestHasScope(r, auth.ScopeCreate) {
 		resp.WriteInsufficientScope(w, "no create scope")
 		return
@@ -32,7 +33,7 @@ func Create(w http.ResponseWriter, r *http.Request, data map[string]any) {
 		return
 	}
 
-	url, now, err := content.ActiveContentStore.Create(r.Context(), document)
+	url, now, err := st.ContentStore.Create(r.Context(), document)
 	if err != nil {
 		resp.WriteInternalServerError(w, err.Error())
 		return

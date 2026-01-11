@@ -10,20 +10,54 @@ import (
 	"github.com/indieinfra/scribble/server/handler/post"
 	"github.com/indieinfra/scribble/server/handler/upload"
 	"github.com/indieinfra/scribble/server/middleware"
+	"github.com/indieinfra/scribble/server/state"
 	"github.com/indieinfra/scribble/storage/content"
-	"github.com/indieinfra/scribble/storage/media"
+	"github.com/indieinfra/scribble/storage/content/contentgit"
 )
 
 func StartServer(cfg *config.Config) {
+	log.Println("initializing...")
+	state, err := initialize(&state.ScribbleState{Cfg: cfg})
+	if err != nil {
+		log.Fatalf("initialization failed: %v", err)
+		return
+	}
+
+	log.Println("configuring routes...")
 	mux := http.NewServeMux()
-	mux.Handle("GET /", middleware.ValidateTokenMiddleware(cfg, get.DispatchGet(cfg)))
-	mux.Handle("POST /", middleware.ValidateTokenMiddleware(cfg, post.DispatchPost(cfg)))
-	mux.Handle("POST /media", middleware.ValidateTokenMiddleware(cfg, upload.HandleMediaUpload(cfg)))
+	mux.Handle("GET /", middleware.ValidateTokenMiddleware(state.Cfg, get.DispatchGet(state)))
+	mux.Handle("POST /", middleware.ValidateTokenMiddleware(state.Cfg, post.DispatchPost(state)))
+	mux.Handle("POST /media", middleware.ValidateTokenMiddleware(state.Cfg, upload.HandleMediaUpload(state)))
 
-	content.ActiveContentStore = &content.NoopContentStore{}
-	media.ActiveMediaStore = &media.NoopMediaStore{}
-
-	bindAddress := fmt.Sprintf("%v:%v", cfg.Server.Address, cfg.Server.Port)
+	bindAddress := fmt.Sprintf("%v:%v", state.Cfg.Server.Address, state.Cfg.Server.Port)
 	log.Printf("serving http requests on %q", bindAddress)
 	log.Fatal(http.ListenAndServe(bindAddress, mux))
+}
+
+func initialize(state *state.ScribbleState) (*state.ScribbleState, error) {
+	contentStore, err := initializeContentStore(&state.Cfg.Content)
+	if err != nil {
+		return nil, err
+	}
+	state.ContentStore = contentStore
+
+	return state, nil
+}
+
+func initializeContentStore(cfg *config.Content) (content.ContentStore, error) {
+	if cfg.Strategy == "git" {
+		repo, err := contentgit.OpenOrClone(cfg.Git)
+		if err != nil {
+			return nil, fmt.Errorf("...failed to init content git repo: %w", err)
+		}
+
+		store, err := contentgit.NewGitContentStore(cfg.Git, repo)
+		if err != nil {
+			return nil, fmt.Errorf("...failed to create content store: %w", err)
+		}
+
+		return store, nil
+	}
+
+	return nil, fmt.Errorf("...unknown content strategy %q", cfg.Strategy)
 }

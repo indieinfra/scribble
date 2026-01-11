@@ -32,7 +32,7 @@ type Content struct {
 
 type GitContentStrategy struct {
 	Repository string                 `mapstructure:"repository" validate:"required,url"`
-	Path       string                 `mapstructure:"path" validate:"required,dirpath"`
+	Path       string                 `mapstructure:"path" validate:"required,localpath"`
 	PublicUrl  string                 `mapstructure:"public_url" validate:"required,url"`
 	LocalPath  string                 `mapstructure:"local_path" validate:"required,abspath"`
 	Auth       GitContentStrategyAuth `mapstructure:"auth"`
@@ -50,6 +50,7 @@ type UsernamePasswordAuth struct {
 }
 
 type SshKeyAuth struct {
+	Username           string `mapstructure:"username" validate:"required"`
 	PrivateKeyFilePath string `mapstructure:"private_key_file_path" validate:"required,file"`
 	Passphrase         string `mapstructure:"passphrase" validate:"required"`
 }
