@@ -20,7 +20,7 @@ type ContentObject struct {
 type ContentStore interface {
 	// function Create accepts a ContentObject and stores it, returning the URL where the
 	// object can be located. If the creation fails, it will return a non-nil error.
-	Create(ctx context.Context, doc util.Mf2Document) (string, error)
+	Create(ctx context.Context, doc util.Mf2Document) (string, bool, error)
 
 	// function Update accepts an ID that refers to an existing ContentObject, and a ContentObject.
 	// The existing ContentObject is diffed with the provided ContentObject to produce a new ContentObject.

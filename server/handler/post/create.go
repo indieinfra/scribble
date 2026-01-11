@@ -32,13 +32,17 @@ func Create(w http.ResponseWriter, r *http.Request, data map[string]any) {
 		return
 	}
 
-	url, err := content.ActiveContentStore.Create(r.Context(), document)
+	url, now, err := content.ActiveContentStore.Create(r.Context(), document)
 	if err != nil {
 		resp.WriteInternalServerError(w, err.Error())
 		return
 	}
 
-	resp.WriteCreated(w, url)
+	if now {
+		resp.WriteCreated(w, url)
+	} else {
+		resp.WriteAccepted(w, url)
+	}
 }
 
 func normalizeJson(input map[string]any) util.Mf2Document {

@@ -9,14 +9,14 @@ import (
 
 type NoopContentStore struct{}
 
-func (cs *NoopContentStore) Create(ctx context.Context, doc util.Mf2Document) (string, error) {
+func (cs *NoopContentStore) Create(ctx context.Context, doc util.Mf2Document) (string, bool, error) {
 	log.Println("Received no-op create request - dumping request information:")
 	log.Printf("Type: %v", doc.Type)
 	log.Printf("Properties:")
 	for key, value := range doc.Properties {
 		log.Printf("\t%v: %v", key, value)
 	}
-	return "https://noop.example.org/noop", nil
+	return "https://noop.example.org/noop", true, nil
 }
 
 func (cs *NoopContentStore) Update(ctx context.Context, url string, replacements map[string][]any, additions map[string][]any, deletions any) (string, error) {

@@ -23,6 +23,14 @@ func WriteCreated(w http.ResponseWriter, location string) {
 	writeResp(w, http.StatusCreated, nil)
 }
 
+func WriteAccepted(w http.ResponseWriter, location string) {
+	if location != "" {
+		w.Header().Add("Location", location)
+	}
+
+	writeResp(w, http.StatusAccepted, nil)
+}
+
 func WriteForbidden(w http.ResponseWriter, description string) {
 	writeError(w, http.StatusForbidden, "forbidden", description)
 }
