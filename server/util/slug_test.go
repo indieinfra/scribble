@@ -32,3 +32,32 @@ func TestGenerateSlug(t *testing.T) {
 		}
 	})
 }
+
+func TestSlugFromURL(t *testing.T) {
+	slug, err := SlugFromURL("https://example.org/posts/hello-world")
+	if err != nil {
+		t.Fatalf("expected slug, got error %v", err)
+	}
+	if slug != "hello-world" {
+		t.Fatalf("unexpected slug %q", slug)
+	}
+
+	slug, err = SlugFromURL("https://example.org/posts/")
+	if err != nil {
+		t.Fatalf("expected trailing slash to still return slug, got error %v", err)
+	}
+	if slug != "posts" {
+		t.Fatalf("expected slug 'posts', got %q", slug)
+	}
+}
+
+func TestExtractTextFromProperty(t *testing.T) {
+	val := extractTextFromProperty([]any{map[string]any{"html": "<p>Hello <b>world</b></p>"}})
+	if val == "" {
+		t.Fatalf("expected html text to be extracted")
+	}
+
+	if val := extractTextFromProperty([]any{nil, ""}); val != "" {
+		t.Fatalf("expected empty string for nil/empty values, got %q", val)
+	}
+}

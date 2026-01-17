@@ -119,3 +119,22 @@ func TestDispatchPost_CreateJSONSuccess(t *testing.T) {
 		t.Fatalf("expected slug 'hello-world', got %#v", slugVals)
 	}
 }
+
+func TestDispatchPost_UnknownAction(t *testing.T) {
+	st := newState()
+	st.ContentStore = &stubContentStore{}
+	st.MediaStore = &stubMediaStore{}
+
+	payload := map[string]any{"action": "bogus"}
+	b, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(auth.AddToken(req.Context(), &auth.TokenDetails{Me: st.Cfg.Micropub.MeUrl, Scope: "create"}))
+
+	rr := httptest.NewRecorder()
+	DispatchPost(st).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown action, got %d", rr.Code)
+	}
+}

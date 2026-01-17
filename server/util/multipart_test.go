@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -83,4 +84,76 @@ func TestParseMultipartFiles_MissingRequired(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 response, got %d", rr.Code)
 	}
+}
+
+func TestParseMultipartWithFirstFile_Success(t *testing.T) {
+	req, _ := makeMultipartRequest(t, map[string]string{"title": "hello"}, map[string]io.Reader{"file": bytes.NewBufferString("data")})
+	rr := httptest.NewRecorder()
+
+	values, file, header, field, ok := ParseMultipartWithFirstFile(rr, req, 1_000_000, 0, []string{"file"}, true)
+	if !ok {
+		t.Fatalf("expected parse to succeed")
+	}
+	if field != "file" || header == nil {
+		t.Fatalf("expected matching file field")
+	}
+	if values["title"].(string) != "hello" {
+		t.Fatalf("expected title to be parsed")
+	}
+	data, _ := io.ReadAll(file)
+	if string(data) != "data" {
+		t.Fatalf("unexpected file contents %q", data)
+	}
+	file.Close()
+}
+
+func TestParseMultipartWithFirstFile_MissingRequired(t *testing.T) {
+	req, _ := makeMultipartRequest(t, map[string]string{"title": "hello"}, nil)
+	rr := httptest.NewRecorder()
+
+	if _, _, _, _, ok := ParseMultipartWithFirstFile(rr, req, 1_000_000, 0, []string{"file"}, true); ok {
+		t.Fatalf("expected missing file to fail")
+	}
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestParseMultipartWithFile_Single(t *testing.T) {
+	req, _ := makeMultipartRequest(t, map[string]string{"title": "hello"}, map[string]io.Reader{"file": bytes.NewBufferString("data")})
+	rr := httptest.NewRecorder()
+
+	values, file, header, ok := ParseMultipartWithFile(rr, req, 1_000_000, 0, "file", true)
+	if !ok {
+		t.Fatalf("expected success")
+	}
+	if header == nil || values["title"] == nil {
+		t.Fatalf("expected file and values parsed")
+	}
+	file.Close()
+}
+
+func makeMultipartRequest(t *testing.T, fields map[string]string, files map[string]io.Reader) (*http.Request, string) {
+	t.Helper()
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		if err := w.WriteField(k, v); err != nil {
+			t.Fatalf("write field: %v", err)
+		}
+	}
+	for name, r := range files {
+		fw, err := w.CreateFormFile(name, name+".txt")
+		if err != nil {
+			t.Fatalf("create form file: %v", err)
+		}
+		if _, err := io.Copy(fw, r); err != nil {
+			t.Fatalf("copy file: %v", err)
+		}
+	}
+	w.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/", &buf)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	return req, w.Boundary()
 }

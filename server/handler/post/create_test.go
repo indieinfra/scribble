@@ -1,9 +1,15 @@
 package post
 
 import (
+	"bytes"
 	"context"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"net/textproto"
 	"testing"
 
+	"github.com/indieinfra/scribble/server/auth"
 	"github.com/indieinfra/scribble/server/util"
 )
 
@@ -24,21 +30,21 @@ func (s *stubStore) Get(context.Context, string) (*util.Mf2Document, error) { re
 
 func TestDeriveSuggestedSlug(t *testing.T) {
 	t.Run("mp-slug wins", func(t *testing.T) {
-		doc := util.Mf2Document{Properties: map[string][]any{"mp-slug": {"custom"}}}
+		doc := util.Mf2Document{Properties: map[string][]any{"mp-slug": []any{"custom"}}}
 		if got := deriveSuggestedSlug(&doc); got != "custom" {
 			t.Fatalf("expected mp-slug, got %q", got)
 		}
 	})
 
 	t.Run("generated slug", func(t *testing.T) {
-		doc := util.Mf2Document{Properties: map[string][]any{"name": {"Hello"}}}
+		doc := util.Mf2Document{Properties: map[string][]any{"name": []any{"Hello"}}}
 		if got := deriveSuggestedSlug(&doc); got != "hello" {
 			t.Fatalf("expected generated slug, got %q", got)
 		}
 	})
 
 	t.Run("uuid fallback", func(t *testing.T) {
-		doc := util.Mf2Document{Properties: map[string][]any{"photo": {"noop"}}}
+		doc := util.Mf2Document{Properties: map[string][]any{"photo": []any{"noop"}}}
 		got := deriveSuggestedSlug(&doc)
 		if got == "" {
 			t.Fatalf("expected uuid fallback slug")
@@ -71,4 +77,122 @@ func TestEnsureUniqueSlug(t *testing.T) {
 			t.Fatalf("expected suffix added, got %q", got)
 		}
 	})
+}
+
+func TestNormalizeFormBodyAndProcessMpProperties(t *testing.T) {
+	doc := normalizeFormBody(map[string]any{
+		"h":          "entry",
+		"category[]": []any{"go", "micropub"},
+		"mp-slug":    "custom-slug",
+		"skip":       []any{},
+	})
+
+	if got := doc.Type[0]; got != "h-entry" {
+		t.Fatalf("expected type h-entry, got %q", got)
+	}
+	if vals := doc.Properties["category"]; len(vals) != 2 {
+		t.Fatalf("expected two category values, got %v", vals)
+	}
+
+	slug := processMpProperties(&doc)
+	if slug != "custom-slug" {
+		t.Fatalf("expected mp-slug to be returned, got %q", slug)
+	}
+	if _, exists := doc.Properties["mp-slug"]; exists {
+		t.Fatalf("expected mp-* properties to be removed")
+	}
+	if _, exists := doc.Properties["skip"]; exists {
+		t.Fatalf("expected empty property to be dropped")
+	}
+}
+
+func TestFirstString(t *testing.T) {
+	if s, ok := firstString("hello"); !ok || s != "hello" {
+		t.Fatalf("expected to extract string")
+	}
+	if s, ok := firstString([]any{"world", "extra"}); !ok || s != "world" {
+		t.Fatalf("expected to extract first string from slice")
+	}
+	if _, ok := firstString(123); ok {
+		t.Fatalf("expected non-string to return false")
+	}
+}
+
+func TestCoerceSlice(t *testing.T) {
+	vals := coerceSlice([]any{"a", nil, "b"})
+	if len(vals) != 2 {
+		t.Fatalf("expected nils to be removed")
+	}
+	vals = coerceSlice("solo")
+	if len(vals) != 1 || vals[0] != "solo" {
+		t.Fatalf("expected single value to be preserved")
+	}
+}
+
+func TestMediaPropertyForUpload(t *testing.T) {
+	header := &multipart.FileHeader{Header: textproto.MIMEHeader{"Content-Type": []string{"video/mp4"}}}
+	if prop := mediaPropertyForUpload(header); prop != "video" {
+		t.Fatalf("expected video property, got %q", prop)
+	}
+
+	header = &multipart.FileHeader{Header: textproto.MIMEHeader{"Content-Type": []string{"audio/mpeg"}}}
+	if prop := mediaPropertyForUpload(header); prop != "audio" {
+		t.Fatalf("expected audio property, got %q", prop)
+	}
+
+	header = &multipart.FileHeader{Filename: "image.jpg", Header: textproto.MIMEHeader{}}
+	if prop := mediaPropertyForUpload(header); prop != "photo" {
+		t.Fatalf("expected photo fallback, got %q", prop)
+	}
+
+	if prop := mediaPropertyForUpload(nil); prop != "photo" {
+		t.Fatalf("expected photo default when header nil, got %q", prop)
+	}
+}
+
+func TestCreateMultipartAccepted(t *testing.T) {
+	st := newState()
+	cs := &stubContentStore{createURL: "https://example.org/pending", createNow: false}
+	st.ContentStore = cs
+	st.MediaStore = &stubMediaStore{}
+
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	_ = w.WriteField("h", "entry")
+	_ = w.WriteField("name", "Photo post")
+	_ = w.WriteField("access_token", "bodytoken")
+	fw, _ := w.CreateFormFile("photo", "pic.jpg")
+	_, _ = fw.Write([]byte("data"))
+	w.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/", &buf)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req = req.WithContext(auth.AddToken(req.Context(), &auth.TokenDetails{Me: st.Cfg.Micropub.MeUrl, Scope: "create"}))
+
+	rr := httptest.NewRecorder()
+	parsed, ok := ReadBody(st.Cfg, rr, req)
+	if !ok {
+		t.Fatalf("expected body to parse")
+	}
+	Create(st, rr, req, parsed)
+	for _, pf := range parsed.Files {
+		pf.File.Close()
+	}
+
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", rr.Code)
+	}
+	if rr.Header().Get("Location") != "https://example.org/pending" {
+		t.Fatalf("expected Location header set")
+	}
+	if !cs.createCalled {
+		t.Fatalf("expected create to be called")
+	}
+	photoVals := cs.lastDoc.Properties["photo"]
+	if len(photoVals) == 0 {
+		t.Fatalf("expected photo property to be set")
+	}
+	if token := parsed.AccessToken; token != "bodytoken" {
+		t.Fatalf("expected access token to be popped from body, got %q", token)
+	}
 }
