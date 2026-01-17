@@ -17,11 +17,13 @@ const (
 )
 
 var scopeName = map[Scope]string{
-	ScopeCreate: "create",
-	ScopeDraft:  "draft",
-	ScopeUpdate: "update",
-	ScopeDelete: "delete",
-	ScopeMedia:  "media",
+	ScopeRead:     "read",
+	ScopeCreate:   "create",
+	ScopeDraft:    "draft",
+	ScopeUpdate:   "update",
+	ScopeDelete:   "delete",
+	ScopeUndelete: "undelete",
+	ScopeMedia:    "media",
 }
 
 func (scope Scope) String() string {

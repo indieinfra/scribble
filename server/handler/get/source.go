@@ -16,5 +16,11 @@ func HandleSource(st *state.ScribbleState, w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	resp.WriteNoContent(w)
+	doc, err := st.ContentStore.Get(r.Context(), url)
+	if err != nil {
+		resp.WriteInternalServerError(w, err.Error())
+		return
+	}
+
+	resp.WriteOK(w, doc)
 }

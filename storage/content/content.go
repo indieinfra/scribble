@@ -35,5 +35,9 @@ type ContentStore interface {
 
 	// function Get accepts an ID and returns the matching ContentObject, if any. If no object is found, a non-nil
 	// error will be returned and the ContentObject pointer will be nil.
-	Get(ctx context.Context, url string) (*ContentObject, error)
+	Get(ctx context.Context, url string) (*util.Mf2Document, error)
+
+	// function ExistsBySlug accepts a slug and returns whether a post exists by that slug. If an error occurs while
+	// traversing the git tree, a non-nil error will be returned
+	ExistsBySlug(ctx context.Context, slug string) (bool, error)
 }

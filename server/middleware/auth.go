@@ -51,8 +51,7 @@ func extractTokenFromFormBody(cfg *config.Config, w http.ResponseWriter, r *http
 		}
 	}
 
-	// micropub declares the parameter "auth_token" when providing the token in this manner
-	return values.Get("auth_token")
+	return values.Get("access_token")
 }
 
 // function ValidateTokenMiddleware wraps a downstream handler. At execution time,

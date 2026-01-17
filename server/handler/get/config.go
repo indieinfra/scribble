@@ -1,7 +1,6 @@
 package get
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -32,11 +31,5 @@ func HandleConfig(st *state.ScribbleState, w http.ResponseWriter, r *http.Reques
 		SyndicateTo:   []SyndicateTo{},
 	}
 
-	err := json.NewEncoder(w).Encode(cfgOut)
-	if err != nil {
-		resp.WriteInternalServerError(w, "failed to encode configuration data")
-		return
-	}
-
-	resp.WriteNoContent(w)
+	resp.WriteOK(w, cfgOut)
 }

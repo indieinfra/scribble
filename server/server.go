@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/indieinfra/scribble/config"
 	"github.com/indieinfra/scribble/server/handler/get"
@@ -12,7 +15,7 @@ import (
 	"github.com/indieinfra/scribble/server/middleware"
 	"github.com/indieinfra/scribble/server/state"
 	"github.com/indieinfra/scribble/storage/content"
-	"github.com/indieinfra/scribble/storage/content/contentgit"
+	"github.com/indieinfra/scribble/storage/media"
 )
 
 func StartServer(cfg *config.Config) {
@@ -22,6 +25,17 @@ func StartServer(cfg *config.Config) {
 		log.Fatalf("initialization failed: %v", err)
 		return
 	}
+
+	// Setup cleanup on shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		log.Println("shutting down...")
+		cleanup(state)
+		os.Exit(0)
+	}()
 
 	log.Println("configuring routes...")
 	mux := http.NewServeMux()
@@ -40,13 +54,14 @@ func initialize(state *state.ScribbleState) (*state.ScribbleState, error) {
 		return nil, err
 	}
 	state.ContentStore = contentStore
+	state.MediaStore = &media.NoopMediaStore{}
 
 	return state, nil
 }
 
 func initializeContentStore(cfg *config.Content) (content.ContentStore, error) {
 	if cfg.Strategy == "git" {
-		store, err := contentgit.NewGitContentStore(cfg.Git)
+		store, err := content.NewGitContentStore(cfg.Git)
 		if err != nil {
 			return nil, err
 		}
@@ -55,4 +70,13 @@ func initializeContentStore(cfg *config.Content) (content.ContentStore, error) {
 	}
 
 	return nil, fmt.Errorf("...unknown content strategy %q", cfg.Strategy)
+}
+
+func cleanup(state *state.ScribbleState) {
+	// Cleanup git content store if applicable
+	if gitStore, ok := state.ContentStore.(*content.GitContentStore); ok {
+		if err := gitStore.Cleanup(); err != nil {
+			log.Printf("error during cleanup: %v", err)
+		}
+	}
 }

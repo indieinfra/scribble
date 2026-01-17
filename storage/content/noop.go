@@ -69,3 +69,9 @@ func (cs *NoopContentStore) Get(ctx context.Context, url string) (*ContentObject
 		Deleted: false,
 	}, nil
 }
+
+func (cs *NoopContentStore) ExistsBySlug(ctx context.Context, slug string) (bool, error) {
+	log.Println("Received no-op exists-by-slug request - dumping request information:")
+	log.Println("Slug: %v", slug)
+	return false, nil
+}

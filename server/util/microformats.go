@@ -34,6 +34,8 @@ func ValidateMf2(doc Mf2Document) error {
 			switch x := v.(type) {
 			case string:
 				// ok
+			case map[string]any:
+				// ok - embedded object (e.g., {html: ["..."], value: ["..."]})
 			case Mf2Document:
 				// recursively validate embedded mf2
 				if err := ValidateMf2(x); err != nil {

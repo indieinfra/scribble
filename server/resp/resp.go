@@ -11,6 +11,10 @@ type ErrorResponse struct {
 	Description string `json:"description"`
 }
 
+func WriteOK(w http.ResponseWriter, object any) {
+	writeResp(w, http.StatusOK, object)
+}
+
 func WriteNoContent(w http.ResponseWriter) {
 	writeResp(w, http.StatusNoContent, nil)
 }
@@ -36,7 +40,7 @@ func WriteForbidden(w http.ResponseWriter, description string) {
 }
 
 func WriteInsufficientScope(w http.ResponseWriter, description string) {
-	writeError(w, http.StatusForbidden, "insufficient_scope", description)
+	writeError(w, http.StatusUnauthorized, "insufficient_scope", description)
 }
 
 func WriteUnauthorized(w http.ResponseWriter, description string) {
