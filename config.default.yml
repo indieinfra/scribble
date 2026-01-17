@@ -22,6 +22,9 @@ server:
     # How big can a file upload be at maximum? 10MB by default. You may wish to adjust this.
     max_file_size: 10_000_000
 
+    # Required: memory cap used when parsing multipart requests (file uploads). Must be large enough to hold all parts' headers and non-file fields.
+    max_multipart_mem: 20_000_000
+
 micropub:
   # Your domain
   me_url: "https://example.org"

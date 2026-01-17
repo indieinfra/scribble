@@ -17,8 +17,9 @@ func HandleMediaUpload(st *state.ScribbleState) http.HandlerFunc {
 			return
 		}
 
+		maxMemory := int64(st.Cfg.Server.Limits.MaxMultipartMem)
 		maxSize := int64(st.Cfg.Server.Limits.MaxFileSize)
-		values, file, header, _, ok := util.ParseMultipartWithFirstFile(w, r, maxSize, []string{"file"}, true)
+		values, file, header, _, ok := util.ParseMultipartWithFirstFile(w, r, maxMemory, maxSize, []string{"file"}, true)
 		if !ok {
 			return
 		}

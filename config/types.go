@@ -16,8 +16,9 @@ type Server struct {
 }
 
 type ServerLimits struct {
-	MaxPayloadSize uint `mapstructure:"max_payload_size" validate:"required"`
-	MaxFileSize    uint `mapstructure:"max_file_size" validate:"required"`
+	MaxPayloadSize  uint `mapstructure:"max_payload_size" validate:"required"`
+	MaxFileSize     uint `mapstructure:"max_file_size" validate:"required"`
+	MaxMultipartMem uint `mapstructure:"max_multipart_mem" validate:"required"`
 }
 
 type Micropub struct {

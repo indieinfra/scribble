@@ -31,13 +31,17 @@ func Create(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, bod
 		return
 	}
 
-	if body.File != nil && body.File.Header != nil {
-		mediaProperty := body.File.Field
-		if mediaProperty == "" || mediaProperty == "file" {
-			mediaProperty = mediaPropertyForUpload(body.File.Header)
+	for _, pf := range body.Files {
+		if pf.Header == nil || pf.File == nil {
+			continue
 		}
 
-		url, err := st.MediaStore.Upload(r.Context(), &body.File.File, body.File.Header)
+		mediaProperty := pf.Field
+		if mediaProperty == "" || mediaProperty == "file" {
+			mediaProperty = mediaPropertyForUpload(pf.Header)
+		}
+
+		url, err := st.MediaStore.Upload(r.Context(), &pf.File, pf.Header)
 		if err != nil {
 			common.LogAndWriteError(w, r, "upload media", err)
 			return

@@ -34,8 +34,10 @@ func DispatchPost(st *state.ScribbleState) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if parsed.File != nil && parsed.File.File != nil {
-			defer parsed.File.File.Close()
+		for _, pf := range parsed.Files {
+			if pf.File != nil {
+				defer pf.File.Close()
+			}
 		}
 
 		actionRaw, ok := parsed.Data["action"]

@@ -42,7 +42,7 @@ func newIntegrationState(t *testing.T) (*state.ScribbleState, func()) {
 
 	cfg := &config.Config{
 		Debug:  false,
-		Server: config.Server{Limits: config.ServerLimits{MaxPayloadSize: 1 << 20, MaxFileSize: 1 << 20}},
+		Server: config.Server{Limits: config.ServerLimits{MaxPayloadSize: 1 << 20, MaxFileSize: 1 << 20, MaxMultipartMem: 1 << 20}},
 		Micropub: config.Micropub{
 			MeUrl:         "https://example.test/me",
 			TokenEndpoint: "https://example.test/token",
@@ -402,7 +402,7 @@ func TestMicropub_MultipartCreateWithPhotoField(t *testing.T) {
 	}
 }
 
-func TestMicropub_MultipartCreateRejectsMultipleFiles(t *testing.T) {
+func TestMicropub_MultipartCreateWithMultipleFiles(t *testing.T) {
 	st, cleanup := newIntegrationState(t)
 	defer cleanup()
 
@@ -450,8 +450,36 @@ func TestMicropub_MultipartCreateRejectsMultipleFiles(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("expected bad request for multiple files, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusCreated {
+		t.Fatalf("unexpected create status: %d", resp.StatusCode)
+	}
+
+	loc := resp.Header.Get("Location")
+	if loc == "" {
+		t.Fatalf("expected Location header from create")
+	}
+
+	sourceURL := srv.URL + "/?q=source&url=" + url.QueryEscape(loc)
+	srcResp, err := client.Get(sourceURL)
+	if err != nil {
+		t.Fatalf("source request failed: %v", err)
+	}
+	defer srcResp.Body.Close()
+
+	if srcResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected source status: %d", srcResp.StatusCode)
+	}
+
+	var doc content.ContentObject
+	if err := json.NewDecoder(srcResp.Body).Decode(&doc); err != nil {
+		t.Fatalf("failed to decode source response: %v", err)
+	}
+
+	if got := doc.Properties["photo"]; len(got) == 0 || got[0] != "https://noop.example.org/noop" {
+		t.Fatalf("expected photo to be uploaded url, got %+v", got)
+	}
+	if got := doc.Properties["video"]; len(got) == 0 || got[0] != "https://noop.example.org/noop" {
+		t.Fatalf("expected video to be uploaded url, got %+v", got)
 	}
 }
 

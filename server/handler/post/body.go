@@ -13,7 +13,7 @@ import (
 
 type ParsedBody struct {
 	Data        map[string]any
-	File        *ParsedFile
+	Files       []ParsedFile
 	AccessToken string
 }
 
@@ -83,19 +83,20 @@ func readFormUrlEncodedBody(cfg *config.Config, w http.ResponseWriter, r *http.R
 }
 
 func readMultipartBody(cfg *config.Config, w http.ResponseWriter, r *http.Request) (*ParsedBody, bool) {
-	maxSize := int64(cfg.Server.Limits.MaxFileSize)
+	maxMemory := int64(cfg.Server.Limits.MaxMultipartMem)
+	maxFile := int64(cfg.Server.Limits.MaxFileSize)
 	fields := []string{"photo", "video", "audio", "file"}
-	values, file, header, field, ok := util.ParseMultipartWithFirstFile(w, r, maxSize, fields, false)
+	values, files, ok := util.ParseMultipartFiles(w, r, maxMemory, maxFile, fields, false)
 	if !ok {
 		return nil, false
 	}
 
 	token := util.PopAccessToken(values)
 
-	var parsedFile *ParsedFile
-	if file != nil && header != nil {
-		parsedFile = &ParsedFile{File: file, Header: header, Field: field}
+	parsedFiles := make([]ParsedFile, 0, len(files))
+	for _, f := range files {
+		parsedFiles = append(parsedFiles, ParsedFile{File: f.File, Header: f.Header, Field: f.Field})
 	}
 
-	return &ParsedBody{Data: values, File: parsedFile, AccessToken: token}, true
+	return &ParsedBody{Data: values, Files: parsedFiles, AccessToken: token}, true
 }
