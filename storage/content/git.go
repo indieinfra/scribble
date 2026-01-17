@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -276,16 +277,16 @@ func (cs *GitContentStore) Update(ctx context.Context, url string, replacements 
 	}
 
 	if deletes, ok := deletions.(map[string][]any); ok {
-		for key, indices := range deletes {
-			remaining := cs.deleteIndices(doc.Properties[key], indices)
+		for key, valuesToRemove := range deletes {
+			remaining := cs.deleteValues(doc.Properties[key], valuesToRemove)
 			if len(remaining) == 0 {
 				delete(doc.Properties, key)
 			} else {
 				doc.Properties[key] = remaining
 			}
 		}
-	} else if deletes, ok := deletions.([]any); ok && len(deletes) > 0 {
-		for key := range doc.Properties {
+	} else if deletes, ok := deletions.([]string); ok {
+		for _, key := range deletes {
 			delete(doc.Properties, key)
 		}
 	}
@@ -483,26 +484,29 @@ func (cs *GitContentStore) setDeletedStatus(ctx context.Context, url string, del
 	return url, nil
 }
 
-func (cs *GitContentStore) deleteIndices(values []any, indices []any) []any {
-	if len(indices) == 0 {
+func (cs *GitContentStore) deleteValues(values []any, toRemove []any) []any {
+	if len(values) == 0 || len(toRemove) == 0 {
 		return values
 	}
 
-	indicesToDelete := make(map[int]bool)
-	for _, idx := range indices {
-		if floatIdx, ok := idx.(float64); ok {
-			indicesToDelete[int(floatIdx)] = true
+	var remaining []any
+	for _, v := range values {
+		if !containsValue(toRemove, v) {
+			remaining = append(remaining, v)
 		}
 	}
 
-	var result []any
-	for i, v := range values {
-		if !indicesToDelete[i] {
-			result = append(result, v)
+	return remaining
+}
+
+func containsValue(list []any, value any) bool {
+	for _, candidate := range list {
+		if reflect.DeepEqual(candidate, value) {
+			return true
 		}
 	}
 
-	return result
+	return false
 }
 
 func (cs *GitContentStore) ExistsBySlug(ctx context.Context, slug string) (bool, error) {

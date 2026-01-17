@@ -8,5 +8,8 @@ import (
 )
 
 func HandleSyndicateTo(st *state.ScribbleState, w http.ResponseWriter, r *http.Request) {
-	resp.WriteNoContent(w)
+	// TODO: Implement syndicate-to retrieval
+	resp.WriteOK(w, map[string]any{
+		"syndicate-to": []any{},
+	})
 }

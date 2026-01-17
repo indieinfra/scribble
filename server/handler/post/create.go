@@ -51,10 +51,6 @@ func Create(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, bod
 	}
 
 	suggestedSlug := deriveSuggestedSlug(&document)
-	if suggestedSlug == "" {
-		resp.WriteInvalidRequest(w, "unable to generate slug: document must contain a name or content property")
-		return
-	}
 
 	finalSlug, err := ensureUniqueSlug(r.Context(), st.ContentStore, suggestedSlug)
 	if err != nil {
@@ -75,6 +71,19 @@ func Create(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, bod
 	} else {
 		resp.WriteAccepted(w, url)
 	}
+}
+
+func deriveSuggestedSlug(doc *util.Mf2Document) string {
+	suggestedSlug := processMpProperties(doc)
+	if suggestedSlug != "" {
+		return suggestedSlug
+	}
+
+	if generated := util.GenerateSlug(*doc); generated != "" {
+		return generated
+	}
+
+	return uuid.NewString()
 }
 
 func buildDocument(contentType string, data map[string]any) (util.Mf2Document, error) {
@@ -100,15 +109,6 @@ func buildDocument(contentType string, data map[string]any) (util.Mf2Document, e
 	return doc, nil
 }
 
-func deriveSuggestedSlug(doc *util.Mf2Document) string {
-	suggestedSlug := processMpProperties(doc)
-	if suggestedSlug != "" {
-		return suggestedSlug
-	}
-
-	return util.GenerateSlug(*doc)
-}
-
 func ensureUniqueSlug(ctx context.Context, store content.ContentStore, slug string) (string, error) {
 	exists, err := store.ExistsBySlug(ctx, slug)
 	if err != nil {
@@ -123,7 +123,7 @@ func ensureUniqueSlug(ctx context.Context, store content.ContentStore, slug stri
 		return "", err
 	}
 
-	return slug + suffix.String(), nil
+	return slug + "-" + suffix.String(), nil
 }
 
 func normalizeJson(input map[string]any) util.Mf2Document {

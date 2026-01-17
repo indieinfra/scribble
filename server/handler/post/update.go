@@ -105,10 +105,18 @@ func getDeletions(data map[string]any) (any, error) {
 		return nil, nil
 	}
 
-	// Could be []any or map[string][]any
+	// Could be []any (of property names) or map[string][]any (values to remove)
 	switch v := raw.(type) {
 	case []any:
-		return v, nil
+		props := make([]string, 0, len(v))
+		for i, p := range v {
+			s, ok := p.(string)
+			if !ok {
+				return nil, fmt.Errorf("delete[%d] must be a string", i)
+			}
+			props = append(props, s)
+		}
+		return props, nil
 	case map[string]any:
 		out := map[string][]any{}
 		for k, val := range v {

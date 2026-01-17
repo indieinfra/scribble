@@ -30,6 +30,15 @@ func DispatchPost(st *state.ScribbleState) http.HandlerFunc {
 		if !ok {
 			return
 		}
+		if parsed.AccessToken != "" && auth.GetToken(r.Context()) != nil {
+			for _, pf := range parsed.Files {
+				if pf.File != nil {
+					pf.File.Close()
+				}
+			}
+			resp.WriteBadRequest(w, "access token must appear in header or body, not both")
+			return
+		}
 		r, ok = middleware.EnsureTokenForRequest(st.Cfg, w, r, parsed.AccessToken)
 		if !ok {
 			return

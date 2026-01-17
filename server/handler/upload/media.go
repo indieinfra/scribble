@@ -3,6 +3,7 @@ package upload
 import (
 	"net/http"
 
+	"github.com/indieinfra/scribble/server/auth"
 	"github.com/indieinfra/scribble/server/handler/common"
 	"github.com/indieinfra/scribble/server/middleware"
 	"github.com/indieinfra/scribble/server/resp"
@@ -25,6 +26,13 @@ func HandleMediaUpload(st *state.ScribbleState) http.HandlerFunc {
 		}
 
 		token := util.PopAccessToken(values)
+		if token != "" && auth.GetToken(r.Context()) != nil {
+			if file != nil {
+				file.Close()
+			}
+			resp.WriteInvalidRequest(w, "access token must appear in header or body, not both")
+			return
+		}
 		r, ok = middleware.EnsureTokenForRequest(st.Cfg, w, r, token)
 		if !ok {
 			if file != nil {
