@@ -3,6 +3,7 @@ package post
 import (
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 
 	"github.com/indieinfra/scribble/config"
@@ -10,20 +11,36 @@ import (
 	"github.com/indieinfra/scribble/server/util"
 )
 
-func ReadBody(cfg *config.Config, w http.ResponseWriter, r *http.Request) map[string]any {
+type ParsedBody struct {
+	Data        map[string]any
+	File        *ParsedFile
+	AccessToken string
+}
+
+type ParsedFile struct {
+	File   multipart.File
+	Header *multipart.FileHeader
+	Field  string
+}
+
+func ReadBody(cfg *config.Config, w http.ResponseWriter, r *http.Request) (*ParsedBody, bool) {
 	_, contentType, ok := util.RequireValidMicropubContentType(w, r)
 	if !ok {
-		return nil
+		return nil, false
 	}
 
 	switch contentType {
 	case "application/json":
-		return readJsonBody(cfg, w, r)
+		return &ParsedBody{Data: readJsonBody(cfg, w, r)}, true
 	case "application/x-www-form-urlencoded":
-		return readFormUrlEncodedBody(cfg, w, r)
+		body := readFormUrlEncodedBody(cfg, w, r)
+		token := util.PopAccessToken(body)
+		return &ParsedBody{Data: body, AccessToken: token}, true
+	case "multipart/form-data":
+		return readMultipartBody(cfg, w, r)
 	}
 
-	return nil
+	return nil, false
 }
 
 func readJsonBody(cfg *config.Config, w http.ResponseWriter, r *http.Request) map[string]any {
@@ -63,4 +80,22 @@ func readFormUrlEncodedBody(cfg *config.Config, w http.ResponseWriter, r *http.R
 	}
 
 	return out
+}
+
+func readMultipartBody(cfg *config.Config, w http.ResponseWriter, r *http.Request) (*ParsedBody, bool) {
+	maxSize := int64(cfg.Server.Limits.MaxFileSize)
+	fields := []string{"photo", "video", "audio", "file"}
+	values, file, header, field, ok := util.ParseMultipartWithFirstFile(w, r, maxSize, fields, false)
+	if !ok {
+		return nil, false
+	}
+
+	token := util.PopAccessToken(values)
+
+	var parsedFile *ParsedFile
+	if file != nil && header != nil {
+		parsedFile = &ParsedFile{File: file, Header: header, Field: field}
+	}
+
+	return &ParsedBody{Data: values, File: parsedFile, AccessToken: token}, true
 }

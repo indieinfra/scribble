@@ -10,7 +10,7 @@ import (
 )
 
 func RequireValidMicropubContentType(w http.ResponseWriter, r *http.Request) (string, string, bool) {
-	return requireValidContentType(w, r, []string{"application/json", "application/x-www-form-urlencoded"})
+	return requireValidContentType(w, r, []string{"application/json", "application/x-www-form-urlencoded", "multipart/form-data"})
 }
 
 func RequireValidMediaContentType(w http.ResponseWriter, r *http.Request) (string, string, bool) {

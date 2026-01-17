@@ -1,10 +1,10 @@
 package upload
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/indieinfra/scribble/server/handler/common"
+	"github.com/indieinfra/scribble/server/middleware"
 	"github.com/indieinfra/scribble/server/resp"
 	"github.com/indieinfra/scribble/server/state"
 	"github.com/indieinfra/scribble/server/util"
@@ -18,19 +18,19 @@ func HandleMediaUpload(st *state.ScribbleState) http.HandlerFunc {
 		}
 
 		maxSize := int64(st.Cfg.Server.Limits.MaxFileSize)
-		r.Body = http.MaxBytesReader(w, r.Body, maxSize)
-		err := r.ParseMultipartForm(maxSize)
-		if err != nil {
-			resp.WriteInvalidRequest(w, fmt.Sprintf("failed to read multipart form: %v", err))
+		values, file, header, _, ok := util.ParseMultipartWithFirstFile(w, r, maxSize, []string{"file"}, true)
+		if !ok {
 			return
 		}
 
-		file, header, err := r.FormFile("file")
-		if err != nil {
-			resp.WriteInvalidRequest(w, fmt.Sprintf("failed to find file data in request: %v", err))
+		token := util.PopAccessToken(values)
+		r, ok = middleware.EnsureTokenForRequest(st.Cfg, w, r, token)
+		if !ok {
+			if file != nil {
+				file.Close()
+			}
 			return
 		}
-
 		defer file.Close()
 
 		url, err := st.MediaStore.Upload(r.Context(), &file, header)

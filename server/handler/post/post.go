@@ -6,29 +6,39 @@ import (
 	"strings"
 
 	"github.com/indieinfra/scribble/server/auth"
+	"github.com/indieinfra/scribble/server/middleware"
 	"github.com/indieinfra/scribble/server/resp"
 	"github.com/indieinfra/scribble/server/state"
 )
 
 func DispatchPost(st *state.ScribbleState) http.HandlerFunc {
-	handlers := map[string]func(*state.ScribbleState, http.ResponseWriter, *http.Request, map[string]any){
+	handlers := map[string]func(*state.ScribbleState, http.ResponseWriter, *http.Request, *ParsedBody){
 		"create": Create,
-		"update": Update,
-		"delete": func(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, body map[string]any) {
-			Delete(st, w, r, body, false)
+		"update": func(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, body *ParsedBody) {
+			Update(st, w, r, body.Data)
 		},
-		"undelete": func(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, body map[string]any) {
-			Delete(st, w, r, body, true)
+		"delete": func(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, body *ParsedBody) {
+			Delete(st, w, r, body.Data, false)
+		},
+		"undelete": func(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, body *ParsedBody) {
+			Delete(st, w, r, body.Data, true)
 		},
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		body := ReadBody(st.Cfg, w, r)
-		if body == nil {
+		parsed, ok := ReadBody(st.Cfg, w, r)
+		if !ok {
 			return
 		}
+		r, ok = middleware.EnsureTokenForRequest(st.Cfg, w, r, parsed.AccessToken)
+		if !ok {
+			return
+		}
+		if parsed.File != nil && parsed.File.File != nil {
+			defer parsed.File.File.Close()
+		}
 
-		actionRaw, ok := body["action"]
+		actionRaw, ok := parsed.Data["action"]
 		if !ok {
 			actionRaw = "create"
 		}
@@ -39,10 +49,10 @@ func DispatchPost(st *state.ScribbleState) http.HandlerFunc {
 			return
 		}
 
-		delete(body, "action")
+		delete(parsed.Data, "action")
 
 		if handler, ok := handlers[strings.ToLower(action)]; ok {
-			handler(st, w, r, body)
+			handler(st, w, r, parsed)
 			return
 		}
 

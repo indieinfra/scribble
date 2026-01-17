@@ -43,6 +43,7 @@ func freshClone(cfg *config.GitContentStrategy, auth transport.AuthMethod) (stri
 		Auth: auth,
 	})
 	if err != nil {
+		_ = os.RemoveAll(tmpDir)
 		return "", nil, err
 	}
 

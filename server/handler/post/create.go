@@ -3,7 +3,10 @@ package post
 import (
 	"context"
 	"fmt"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -15,17 +18,32 @@ import (
 	"github.com/indieinfra/scribble/storage/content"
 )
 
-func Create(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, data map[string]any) {
+func Create(st *state.ScribbleState, w http.ResponseWriter, r *http.Request, body *ParsedBody) {
 	if !requireScope(w, r, auth.ScopeCreate) {
 		return
 	}
 
 	ct, _ := util.ExtractMediaType(w, r)
 
-	document, err := buildDocument(ct, data)
+	document, err := buildDocument(ct, body.Data)
 	if err != nil {
 		resp.WriteInvalidRequest(w, err.Error())
 		return
+	}
+
+	if body.File != nil && body.File.Header != nil {
+		mediaProperty := body.File.Field
+		if mediaProperty == "" || mediaProperty == "file" {
+			mediaProperty = mediaPropertyForUpload(body.File.Header)
+		}
+
+		url, err := st.MediaStore.Upload(r.Context(), &body.File.File, body.File.Header)
+		if err != nil {
+			common.LogAndWriteError(w, r, "upload media", err)
+			return
+		}
+
+		document.Properties[mediaProperty] = append(document.Properties[mediaProperty], url)
 	}
 
 	suggestedSlug := deriveSuggestedSlug(&document)
@@ -62,6 +80,9 @@ func buildDocument(contentType string, data map[string]any) (util.Mf2Document, e
 	case "application/json":
 		doc = normalizeJson(data)
 	case "application/x-www-form-urlencoded":
+		doc = normalizeFormBody(data)
+		delete(doc.Properties, "access_token")
+	case "multipart/form-data":
 		doc = normalizeFormBody(data)
 		delete(doc.Properties, "access_token")
 	default:
@@ -275,4 +296,26 @@ func coerceSlice(v any) []any {
 	}
 
 	return out
+}
+
+func mediaPropertyForUpload(header *multipart.FileHeader) string {
+	if header == nil {
+		return "photo"
+	}
+
+	contentType := strings.ToLower(header.Header.Get("Content-Type"))
+	if contentType == "" {
+		if ext := strings.ToLower(filepath.Ext(header.Filename)); ext != "" {
+			contentType = mime.TypeByExtension(ext)
+		}
+	}
+
+	switch {
+	case strings.HasPrefix(contentType, "video/"):
+		return "video"
+	case strings.HasPrefix(contentType, "audio/"):
+		return "audio"
+	default:
+		return "photo"
+	}
 }

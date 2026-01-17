@@ -3,8 +3,10 @@ package integration
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -261,5 +263,272 @@ func TestMicropub_CreateUpdateDeleteFlow(t *testing.T) {
 
 	if del := deletedDoc.Properties["deleted"]; len(del) == 0 || del[0] != true {
 		t.Fatalf("deleted flag not set: %+v", del)
+	}
+}
+
+func TestMicropub_MultipartCreateWithFile(t *testing.T) {
+	st, cleanup := newIntegrationState(t)
+	defer cleanup()
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /", withToken(st.Cfg, post.DispatchPost(st)))
+	mux.Handle("GET /", withToken(st.Cfg, get.DispatchGet(st)))
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := srv.Client()
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	_ = writer.WriteField("name", "Multipart Title")
+	_ = writer.WriteField("content", "Multipart Body")
+	fileWriter, err := writer.CreateFormFile("file", "hello.txt")
+	if err != nil {
+		t.Fatalf("failed to create form file: %v", err)
+	}
+	fileWriter.Write([]byte("hello"))
+	writer.Close()
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/", &buf)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	createResp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("create request failed: %v", err)
+	}
+	createResp.Body.Close()
+
+	if createResp.StatusCode != http.StatusAccepted && createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("unexpected create status: %d", createResp.StatusCode)
+	}
+
+	loc := createResp.Header.Get("Location")
+	if loc == "" {
+		t.Fatalf("expected Location header from create")
+	}
+
+	sourceURL := srv.URL + "/?q=source&url=" + url.QueryEscape(loc)
+	srcResp, err := client.Get(sourceURL)
+	if err != nil {
+		t.Fatalf("source request failed: %v", err)
+	}
+	defer srcResp.Body.Close()
+
+	if srcResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected source status: %d", srcResp.StatusCode)
+	}
+
+	var doc content.ContentObject
+	if err := json.NewDecoder(srcResp.Body).Decode(&doc); err != nil {
+		t.Fatalf("failed to decode source response: %v", err)
+	}
+
+	if got := doc.Properties["photo"]; len(got) == 0 || got[0] != "https://noop.example.org/noop" {
+		t.Fatalf("expected photo to be uploaded url, got %+v", got)
+	}
+}
+
+func TestMicropub_MultipartCreateWithPhotoField(t *testing.T) {
+	st, cleanup := newIntegrationState(t)
+	defer cleanup()
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /", withToken(st.Cfg, post.DispatchPost(st)))
+	mux.Handle("GET /", withToken(st.Cfg, get.DispatchGet(st)))
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := srv.Client()
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	_ = writer.WriteField("name", "Photo Field Title")
+	_ = writer.WriteField("content", "Photo Field Body")
+	photoWriter, err := writer.CreateFormFile("photo", "pic.jpg")
+	if err != nil {
+		t.Fatalf("failed to create photo form file: %v", err)
+	}
+	photoWriter.Write([]byte("jpg-bytes"))
+	writer.Close()
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/", &buf)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	createResp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("create request failed: %v", err)
+	}
+	createResp.Body.Close()
+
+	if createResp.StatusCode != http.StatusAccepted && createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("unexpected create status: %d", createResp.StatusCode)
+	}
+
+	loc := createResp.Header.Get("Location")
+	if loc == "" {
+		t.Fatalf("expected Location header from create")
+	}
+
+	sourceURL := srv.URL + "/?q=source&url=" + url.QueryEscape(loc)
+	srcResp, err := client.Get(sourceURL)
+	if err != nil {
+		t.Fatalf("source request failed: %v", err)
+	}
+	defer srcResp.Body.Close()
+
+	if srcResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected source status: %d", srcResp.StatusCode)
+	}
+
+	var doc content.ContentObject
+	if err := json.NewDecoder(srcResp.Body).Decode(&doc); err != nil {
+		t.Fatalf("failed to decode source response: %v", err)
+	}
+
+	if got := doc.Properties["photo"]; len(got) == 0 || got[0] != "https://noop.example.org/noop" {
+		t.Fatalf("expected photo to be uploaded url, got %+v", got)
+	}
+
+	if _, hasVideo := doc.Properties["video"]; hasVideo {
+		t.Fatalf("did not expect video property when uploading a photo: %+v", doc.Properties["video"])
+	}
+}
+
+func TestMicropub_MultipartCreateRejectsMultipleFiles(t *testing.T) {
+	st, cleanup := newIntegrationState(t)
+	defer cleanup()
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /", withToken(st.Cfg, post.DispatchPost(st)))
+	mux.Handle("GET /", withToken(st.Cfg, get.DispatchGet(st)))
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := srv.Client()
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	_ = writer.WriteField("name", "Multi File Title")
+	_ = writer.WriteField("content", "Multi File Body")
+
+	photoWriter, err := writer.CreateFormFile("photo", "pic.jpg")
+	if err != nil {
+		t.Fatalf("failed to create photo form file: %v", err)
+	}
+	photoWriter.Write([]byte("jpg-bytes"))
+
+	videoHeader := textproto.MIMEHeader{}
+	videoHeader.Set("Content-Disposition", `form-data; name="video"; filename="clip.mp4"`)
+	videoHeader.Set("Content-Type", "video/mp4")
+
+	videoWriter, err := writer.CreatePart(videoHeader)
+	if err != nil {
+		t.Fatalf("failed to create video form part: %v", err)
+	}
+	videoWriter.Write([]byte("video-data"))
+
+	writer.Close()
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/", &buf)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("create request failed: %v", err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected bad request for multiple files, got %d", resp.StatusCode)
+	}
+}
+
+func TestMicropub_MultipartCreateWithVideo(t *testing.T) {
+	st, cleanup := newIntegrationState(t)
+	defer cleanup()
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /", withToken(st.Cfg, post.DispatchPost(st)))
+	mux.Handle("GET /", withToken(st.Cfg, get.DispatchGet(st)))
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := srv.Client()
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	_ = writer.WriteField("name", "Multipart Video")
+	_ = writer.WriteField("content", "Video Body")
+
+	videoHeader := textproto.MIMEHeader{}
+	videoHeader.Set("Content-Disposition", `form-data; name="file"; filename="clip.mp4"`)
+	videoHeader.Set("Content-Type", "video/mp4")
+
+	videoWriter, err := writer.CreatePart(videoHeader)
+	if err != nil {
+		t.Fatalf("failed to create video form part: %v", err)
+	}
+	if _, err := videoWriter.Write([]byte("video-data")); err != nil {
+		t.Fatalf("failed to write video content: %v", err)
+	}
+
+	writer.Close()
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/", &buf)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	createResp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("create request failed: %v", err)
+	}
+	createResp.Body.Close()
+
+	if createResp.StatusCode != http.StatusAccepted && createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("unexpected create status: %d", createResp.StatusCode)
+	}
+
+	loc := createResp.Header.Get("Location")
+	if loc == "" {
+		t.Fatalf("expected Location header from create")
+	}
+
+	sourceURL := srv.URL + "/?q=source&url=" + url.QueryEscape(loc)
+	srcResp, err := client.Get(sourceURL)
+	if err != nil {
+		t.Fatalf("source request failed: %v", err)
+	}
+	defer srcResp.Body.Close()
+
+	if srcResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected source status: %d", srcResp.StatusCode)
+	}
+
+	var doc content.ContentObject
+	if err := json.NewDecoder(srcResp.Body).Decode(&doc); err != nil {
+		t.Fatalf("failed to decode source response: %v", err)
+	}
+
+	if got := doc.Properties["video"]; len(got) == 0 || got[0] != "https://noop.example.org/noop" {
+		t.Fatalf("expected video to be uploaded url, got %+v", got)
+	}
+
+	if _, hasPhoto := doc.Properties["photo"]; hasPhoto {
+		t.Fatalf("did not expect photo property when uploading a video: %+v", doc.Properties["photo"])
 	}
 }

@@ -26,6 +26,9 @@ func StartServer(cfg *config.Config) error {
 	log.Println("initializing...")
 	st, err := initialize(&state.ScribbleState{Cfg: cfg})
 	if err != nil {
+		if st != nil && st.ContentStore != nil {
+			cleanup(st)
+		}
 		return fmt.Errorf("initialization failed: %w", err)
 	}
 
@@ -78,6 +81,9 @@ func initialize(st *state.ScribbleState) (*state.ScribbleState, error) {
 
 	mediaStore, err := initializeMediaStore(&st.Cfg.Media)
 	if err != nil {
+		if gitStore, ok := st.ContentStore.(*content.GitContentStore); ok {
+			_ = gitStore.Cleanup()
+		}
 		return nil, err
 	}
 	st.MediaStore = mediaStore
